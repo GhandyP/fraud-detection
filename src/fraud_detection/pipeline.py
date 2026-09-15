@@ -4,11 +4,11 @@ from pathlib import Path
 
 import numpy as np
 
-from src.data.loader import DataLoader, DatasetConfig
-from src.data.preprocessor import FraudPreprocessor, PreprocessConfig
-from src.models.train import ModelTrainer, TrainConfig
-from src.utils.config import ProjectPaths
-from src.utils.logger import get_logger
+from fraud_detection.data.loader import DataLoader, DatasetConfig
+from fraud_detection.data.preprocessor import FraudPreprocessor, PreprocessConfig
+from fraud_detection.models.train import ModelTrainer, TrainConfig
+from fraud_detection.utils.config import ProjectPaths
+from fraud_detection.utils.logger import get_logger
 
 
 def run_training(root: Path, sample_size: int | None = None) -> None:
