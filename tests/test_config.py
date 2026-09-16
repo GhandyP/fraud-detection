@@ -24,6 +24,8 @@ def test_load_config_resolves_default_path_and_types(tmp_path: Path) -> None:
     assert loaded.dataset.file_name == "transactions.csv"
     assert loaded.dataset.target_column == "fraud"
     assert loaded.train.test_size == 0.25
+    assert loaded.train.validation_size == 0.2
+    assert loaded.train.split_strategy == "random"
     assert loaded.train.random_state == 7
 
 
@@ -46,6 +48,18 @@ def test_load_config_resolves_default_path_and_types(tmp_path: Path) -> None:
         (
             "dataset:\n  file_name: data.csv\n  target_column: fraud\ntrain:\n  test_size: .2\n  random_state: true",
             "random_state",
+        ),
+        (
+            "dataset:\n  file_name: data.csv\n  target_column: fraud\ntrain:\n  validation_size: 0.8\n  test_size: 0.2",
+            "sum to less",
+        ),
+        (
+            "dataset:\n  file_name: data.csv\n  target_column: fraud\ntrain:\n  split_strategy: temporal",
+            "split_strategy",
+        ),
+        (
+            "dataset:\n  file_name: data.csv\n  target_column: fraud\ntrain:\n  timestamp_column: created_at",
+            "timestamp",
         ),
     ],
 )

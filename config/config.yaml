@@ -3,6 +3,8 @@ dataset:
   target_column: Class
 train:
   test_size: 0.2
+  validation_size: 0.2
+  split_strategy: random
   random_state: 42
   model_name: logistic_regression
   model_version: "1.0"

@@ -1,5 +1,7 @@
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import joblib
 import numpy as np
@@ -17,7 +19,7 @@ from fraud_detection.utils.hashing import sha256_file
 
 def _train(
     tmp_path: Path, threshold: float = 0.5
-) -> tuple[ModelTrainer, Path, pd.DataFrame, dict[str, float]]:
+) -> tuple[ModelTrainer, Path, pd.DataFrame, dict[str, Any]]:
     X = pd.DataFrame(
         {
             "amount": [1.0, 2.0, 3.0, 4.0, 8.0, 9.0, 10.0, 11.0],
@@ -35,6 +37,151 @@ def test_pipeline_contains_scaler_and_classifier(tmp_path: Path) -> None:
     assert isinstance(trainer.model, Pipeline)
     assert isinstance(trainer.model.named_steps["scaler"], StandardScaler)
     assert isinstance(trainer.model.named_steps["classifier"], LogisticRegression)
+
+
+def test_phase2b_save_rejects_partial_arguments_and_legacy_mix(tmp_path: Path) -> None:
+    trainer, _, _, _ = _train(tmp_path)
+    with pytest.raises(ValueError, match="Phase 2B save"):
+        trainer.save(validation_metrics={})
+    with pytest.raises(ValueError, match="Legacy metrics"):
+        trainer.save({"f1": 0.5}, validation_metrics={}, test_metrics={})
+
+
+def test_train_validate_test_fits_only_train_partition(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trainer = ModelTrainer(TrainConfig(tmp_path, max_iter=100, dataset_sha256="0" * 64))
+    X_train = pd.DataFrame({"amount": [101.0, 102.0, 103.0, 104.0]})
+    y_train = np.array([0, 1, 0, 1])
+    X_validation = pd.DataFrame({"amount": [201.0, 202.0, 203.0, 204.0]})
+    y_validation = np.array([0, 1, 0, 1])
+    X_test = pd.DataFrame({"amount": [301.0, 302.0, 303.0, 304.0]})
+    y_test = np.array([0, 1, 0, 1])
+    fit_spy = Mock(wraps=trainer.model.fit)
+    monkeypatch.setattr(trainer.model, "fit", fit_spy)
+    monkeypatch.setattr(trainer, "save", Mock(return_value=tmp_path / "ignored.joblib"))
+
+    trainer.train_validate_test(
+        X_train,
+        y_train,
+        X_validation,
+        y_validation,
+        X_test,
+        y_test,
+    )
+
+    fit_spy.assert_called_once()
+    fitted_features, fitted_labels = fit_spy.call_args.args[:2]
+    pd.testing.assert_frame_equal(fitted_features, X_train)
+    np.testing.assert_array_equal(fitted_labels, y_train)
+
+
+def test_phase2b_save_derives_consistent_sample_size(tmp_path: Path) -> None:
+    trainer = ModelTrainer(
+        TrainConfig(tmp_path, sample_size=None, max_iter=100, dataset_sha256="0" * 64)
+    )
+    X = pd.DataFrame({"amount": list(range(1, 13))})
+    y = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1])
+    path, validation, test = trainer.train_validate_test(
+        X.iloc[:6], y[:6], X.iloc[6:10], y[6:10], X.iloc[10:], y[10:]
+    )
+    metadata = load_bundle(path).metadata
+    assert metadata["sample_size"] == 12
+    assert metadata["validation_metrics"] == validation
+    assert metadata["test_metrics"] == test
+
+
+def _train_phase2b(tmp_path: Path) -> Path:
+    trainer = ModelTrainer(TrainConfig(tmp_path, max_iter=100, dataset_sha256="0" * 64))
+    X = pd.DataFrame({"amount": list(range(1, 13))})
+    y = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1])
+    return trainer.train_validate_test(
+        X.iloc[:6], y[:6], X.iloc[6:10], y[6:10], X.iloc[10:], y[10:]
+    )[0]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda metadata: metadata.pop("validation_metrics"),
+            "missing required fields",
+        ),
+        (
+            lambda metadata: metadata["threshold_selection"].update(
+                selection_split="test"
+            ),
+            "must use validation",
+        ),
+        (
+            lambda metadata: metadata["threshold_selection"].update(threshold=0.25),
+            "disagrees with bundle",
+        ),
+        (
+            lambda metadata: metadata["threshold_selection"].update(
+                tie_break="lowest_threshold"
+            ),
+            "must use validation",
+        ),
+        (
+            lambda metadata: metadata.update(dataset_sha256=None),
+            "dataset_sha256 is invalid",
+        ),
+        (
+            lambda metadata: metadata.update(dataset_sha256="z" * 64),
+            "dataset_sha256 is invalid",
+        ),
+        (
+            lambda metadata: metadata["runtime_packages"].update(numpy=1),
+            "runtime metadata is invalid",
+        ),
+        (
+            lambda metadata: metadata["runtime_versions"].update(python="other"),
+            "runtime_versions is inconsistent",
+        ),
+        (
+            lambda metadata: metadata["runtime_versions"]["packages"].update(
+                numpy="different"
+            ),
+            "runtime_versions is inconsistent",
+        ),
+        (
+            lambda metadata: metadata["validation_metrics"].update(
+                confusion_matrix=[[1, 2, 3]]
+            ),
+            "2x2 count matrix",
+        ),
+        (
+            lambda metadata: metadata.update(sample_size=11),
+            "agree with sample_size",
+        ),
+        (
+            lambda metadata: metadata.update(artifact_schema_version="9.9"),
+            "Unsupported",
+        ),
+    ],
+)
+def test_load_rejects_malformed_phase2b_metadata(
+    tmp_path: Path, mutate: Any, message: str
+) -> None:
+    path = _train_phase2b(tmp_path)
+    bundle = joblib.load(path)
+    metadata = deepcopy(bundle.metadata)
+    mutate(metadata)
+    bundle.metadata = metadata
+    joblib.dump(bundle, path)
+    with pytest.raises(ValueError, match=message):
+        load_bundle(path)
+
+
+def test_phase2b_predictor_uses_inclusive_persisted_threshold(tmp_path: Path) -> None:
+    path = _train_phase2b(tmp_path)
+    predictor = ModelPredictor(path)
+    features = pd.DataFrame({"amount": [1.0, 6.0, 12.0]})
+    scores = predictor.predict_proba(features)[:, 1]
+    expected = (scores >= predictor.metadata["threshold"]).astype(int)
+    np.testing.assert_array_equal(predictor.predict(features), expected)
+    assert predictor.threshold == predictor.metadata["threshold"]
 
 
 def test_save_without_metrics_is_supported(tmp_path: Path) -> None:
@@ -180,12 +327,12 @@ def test_bundle_type_rejects_invalid_pipeline() -> None:
 
 def test_ndarray_round_trip_uses_artifact_feature_names(tmp_path: Path) -> None:
     trainer = ModelTrainer(TrainConfig(tmp_path, max_iter=100))
-    X = np.array([[1.0], [2.0], [8.0], [9.0]])
-    y = np.array([0, 0, 1, 1])
-    path = trainer.train_and_evaluate(X[:3], y[:3], X[3:], y[3:], ["amount"])[0]
+    X = np.array([[1.0], [2.0], [3.0], [4.0], [8.0], [9.0]])
+    y = np.array([0, 0, 0, 1, 0, 1])
+    path = trainer.train_and_evaluate(X[:4], y[:4], X[4:], y[4:], ["amount"])[0]
 
     predictor = ModelPredictor(path)
-    assert predictor.predict_proba(X).shape == (4, 2)
+    assert predictor.predict_proba(X).shape == (6, 2)
 
 
 @pytest.mark.parametrize("features", [np.array([1.0, 2.0]), np.empty((0, 1))])

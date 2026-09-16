@@ -21,6 +21,8 @@ class DatasetSettings:
 @dataclass(frozen=True)
 class TrainSettings:
     test_size: float
+    validation_size: float
+    split_strategy: str
     random_state: int
     model_name: str
     model_version: str
@@ -93,13 +95,31 @@ def load_config(root: Path, config_path: str | Path | None = None) -> AppConfig:
     file_name = _validate_file_name(_required_string(dataset, "file_name"))
     target = _required_string(dataset, "target_column")
     test_size = train.get("test_size", 0.2)
-    if (
-        isinstance(test_size, bool)
-        or not isinstance(test_size, (int, float))
-        or not isfinite(float(test_size))
-        or not 0 < test_size < 1
+    validation_size = train.get("validation_size", 0.2)
+    for name, value in (("test_size", test_size), ("validation_size", validation_size)):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(float(value))
+            or not 0 < value < 1
+        ):
+            raise ConfigError(f"train.{name} must be a number strictly between 0 and 1")
+    if float(test_size) + float(validation_size) >= 1:
+        raise ConfigError(
+            "train.validation_size and train.test_size must sum to less than 1"
+        )
+    split_strategy = train.get("split_strategy", "random")
+    if split_strategy != "random":
+        raise ConfigError(
+            "train.split_strategy must be 'random'; temporal splitting is not supported yet"
+        )
+    timestamp_keys = {"timestamp_column", "timestamp_feature", "timestamp_required"}
+    if any(
+        key in train and train[key] not in (None, False, "") for key in timestamp_keys
     ):
-        raise ConfigError("train.test_size must be a number strictly between 0 and 1")
+        raise ConfigError(
+            "Temporal timestamp requirements are not supported until temporal splitting is implemented"
+        )
     random_state = train.get("random_state", 42)
     if (
         isinstance(random_state, bool)
@@ -125,6 +145,8 @@ def load_config(root: Path, config_path: str | Path | None = None) -> AppConfig:
         dataset=DatasetSettings(file_name=file_name, target_column=target),
         train=TrainSettings(
             test_size=float(test_size),
+            validation_size=float(validation_size),
+            split_strategy=split_strategy,
             random_state=random_state,
             model_name=model_name.strip(),
             model_version=model_version.strip(),

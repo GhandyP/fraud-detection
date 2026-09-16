@@ -27,18 +27,28 @@ def test_run_training_wires_yaml_values(monkeypatch, tmp_path: Path) -> None:
         def __init__(self, value):
             captured["preprocess"] = value
 
-        def split(self, df):
-            return df[["value"]], df[["value"]], df["label"], df["label"]
-
-        def scale(self, train, test):
-            return train, test
+        def split_three_way(self, df):
+            return type(
+                "Splits",
+                (),
+                {
+                    "X_train": df[["value"]].iloc[:2],
+                    "X_validation": df[["value"]].iloc[2:3],
+                    "X_test": df[["value"]].iloc[3:],
+                    "y_train": df["label"].iloc[:2],
+                    "y_validation": df["label"].iloc[2:3],
+                    "y_test": df["label"].iloc[3:],
+                },
+            )()
 
     class FakeTrainer:
         def __init__(self, value):
             captured["trainer"] = value
 
-        def train_and_evaluate(self, *args):
-            return tmp_path / "model.joblib", {}
+        def train_validate_test(self, *args, **kwargs):
+            captured["trainer_args"] = args
+            captured["trainer_kwargs"] = kwargs
+            return tmp_path / "model.joblib", {}, {}
 
     monkeypatch.setattr(pipeline, "DataLoader", FakeLoader)
     monkeypatch.setattr(pipeline, "FraudPreprocessor", FakePreprocessor)
@@ -53,6 +63,10 @@ def test_run_training_wires_yaml_values(monkeypatch, tmp_path: Path) -> None:
     assert captured["preprocess"].random_state == 19
     assert captured["trainer"].random_state == 19
     assert captured["sample_size"] == 3
+    assert captured["preprocess"].validation_size == 0.2
+    assert captured["preprocess"].split_strategy == "random"
+    assert captured["trainer_kwargs"]["split_strategy"] == "random"
+    assert [len(captured["trainer_args"][index]) for index in (0, 2, 4)] == [2, 1, 1]
 
 
 def test_run_training_persists_raw_feature_bundle(tmp_path: Path) -> None:
@@ -80,4 +94,11 @@ def test_run_training_persists_raw_feature_bundle(tmp_path: Path) -> None:
     )
     predictions = predictor.predict(pd.DataFrame({"amount": [2, 14], "age": [21, 54]}))
     assert predictions.shape == (2,)
-    assert predictor.metadata["model_version"] == "test"
+    metadata = predictor.metadata
+    assert metadata["model_version"] == "test"
+    assert metadata["artifact_schema_version"] == "2.0"
+    assert metadata["split_strategy"] == "random"
+    assert set(metadata["split_counts"]) == {"train", "validation", "test"}
+    assert set(metadata["validation_metrics"]) == set(metadata["test_metrics"])
+    assert metadata["threshold_selection"]["selection_split"] == "validation"
+    assert predictor.threshold == metadata["threshold_selection"]["threshold"]

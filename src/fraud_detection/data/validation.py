@@ -14,6 +14,41 @@ class DataValidationError(ValueError):
 
 def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
     """Validate data before preprocessing or model fitting."""
+    if not isinstance(config, PreprocessConfig):
+        raise DataValidationError("config must be a PreprocessConfig instance")
+    if not isinstance(config.target_column, str) or not config.target_column.strip():
+        raise DataValidationError("target_column must be a non-empty string")
+    if not isinstance(config.split_strategy, str):
+        raise DataValidationError("split_strategy must be a string")
+    if config.timestamp_column is not None and not isinstance(
+        config.timestamp_column, str
+    ):
+        raise DataValidationError("timestamp_column must be a string or None")
+    if config.split_strategy != "random":
+        raise DataValidationError(
+            "Only the 'random' split strategy is supported; temporal splitting "
+            "is reserved for a later phase"
+        )
+    if config.timestamp_column is not None:
+        raise DataValidationError(
+            "timestamp_column is not supported until temporal splitting is implemented"
+        )
+    for name, value in (
+        ("validation_size", config.validation_size),
+        ("test_size", config.test_size),
+    ):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise DataValidationError(f"{name} must be a finite proportion")
+        if not math.isfinite(float(value)):
+            raise DataValidationError(f"{name} must be a finite proportion")
+        if value < 0 or (name == "test_size" and value == 0):
+            raise DataValidationError(
+                f"{name} must be positive, or validation_size may be zero for two-way splitting"
+            )
+    if config.validation_size + config.test_size >= 1:
+        raise DataValidationError(
+            "validation_size and test_size must sum to less than 1"
+        )
     if not isinstance(df, pd.DataFrame) or df.empty:
         raise DataValidationError("Dataset must be a non-empty pandas DataFrame")
     if not df.columns.is_unique:
@@ -75,9 +110,29 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
 
     n_samples = len(df)
     test_count = math.ceil(n_samples * config.test_size)
-    train_count = n_samples - test_count
-    if test_count < len(classes) or train_count < len(classes):
+    remaining_count = n_samples - test_count
+    validation_fraction = config.validation_size / (1 - config.test_size)
+    if config.validation_size == 0:
+        train_count = remaining_count
+        if min(train_count, test_count) < len(classes):
+            raise DataValidationError(
+                "Configured stratified split must leave at least one sample of every "
+                "class in train and test partitions "
+                f"(test_size={config.test_size})"
+            )
+        return
+
+    validation_count = math.ceil(remaining_count * validation_fraction)
+    train_count = remaining_count - validation_count
+    if min(train_count, validation_count, test_count) < len(classes):
         raise DataValidationError(
             "Configured stratified split must leave at least one sample of every class "
-            f"in train and test (test_size={config.test_size})"
+            "in train, validation, and test partitions; each target class also needs "
+            "at least three samples "
+            f"(validation_size={config.validation_size}, test_size={config.test_size})"
+        )
+    if any(count < 3 for count in counts):
+        raise DataValidationError(
+            "Each target class must contain at least three samples for a three-way "
+            "stratified split"
         )

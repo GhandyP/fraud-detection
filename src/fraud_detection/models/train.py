@@ -13,15 +13,21 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, precision_score, recall_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from fraud_detection.models.artifact import (
     ARTIFACT_SCHEMA_VERSION,
+    PHASE2B_ARTIFACT_SCHEMA_VERSION,
     ModelBundle,
     save_bundle,
     validate_threshold,
+)
+from fraud_detection.models.evaluate import (
+    Metrics,
+    MetricValue,
+    evaluate_scores,
+    select_threshold,
 )
 
 
@@ -106,6 +112,7 @@ class ModelTrainer:
         )
         self.feature_names: tuple[str, ...] | None = None
         self._fitted = False
+        self._threshold_selection: dict[str, Any] | None = None
 
     @staticmethod
     def _validate_feature_values(features: pd.DataFrame) -> None:
@@ -197,27 +204,89 @@ class ModelTrainer:
         self.model.fit(X_prepared, y_train)
         self._fitted = True
 
+    def select_threshold(
+        self,
+        X_validation: pd.DataFrame | np.ndarray,
+        y_validation: np.ndarray | pd.Series,
+    ) -> float:
+        """Select and configure a validation-only maximum-F1 threshold."""
+        if not self._fitted or self.feature_names is None:
+            raise ValueError("Model must be trained before selecting a threshold")
+        X_prepared = self._prepare_features(X_validation, self.feature_names)
+        validation_scores = self.model.predict_proba(X_prepared)[:, 1]
+        threshold = select_threshold(np.asarray(y_validation), validation_scores)
+        self.config.threshold = threshold
+        self._threshold_selection = {
+            "method": "max_f1",
+            "selection_split": "validation",
+            "tie_break": "highest_threshold",
+            "threshold": threshold,
+        }
+        return threshold
+
     def evaluate(
         self, X_test: pd.DataFrame | np.ndarray, y_test: np.ndarray | pd.Series
-    ) -> dict[str, float]:
+    ) -> Metrics:
         if not self._fitted or self.feature_names is None:
             raise ValueError("Model must be trained before evaluation")
         X_prepared = self._prepare_features(X_test, self.feature_names)
         y_scores = self.model.predict_proba(X_prepared)[:, 1]
-        y_pred = (y_scores >= self.config.threshold).astype(int)
-        return {
-            "recall": float(recall_score(y_test, y_pred, zero_division=0)),
-            "precision": float(precision_score(y_test, y_pred, zero_division=0)),
-            "pr_auc": float(average_precision_score(y_test, y_scores)),
-        }
+        return evaluate_scores(y_test, y_scores, threshold=self.config.threshold)
 
-    def save(self, metrics: Mapping[str, float] | None = None) -> Path:
+    def save(
+        self,
+        metrics: Mapping[str, MetricValue] | None = None,
+        *,
+        validation_metrics: Mapping[str, MetricValue] | None = None,
+        test_metrics: Mapping[str, MetricValue] | None = None,
+        split_strategy: str | None = None,
+        split_counts: Mapping[str, int] | None = None,
+    ) -> Path:
         if not self._fitted or self.feature_names is None:
             raise ValueError("Model must be trained before saving")
+        phase2b_values = (
+            validation_metrics,
+            test_metrics,
+            split_strategy,
+            split_counts,
+        )
+        phase2b_supplied = any(value is not None for value in phase2b_values)
+        if metrics is not None and (
+            validation_metrics is not None or test_metrics is not None
+        ):
+            raise ValueError("Legacy metrics cannot be combined with Phase 2B metrics")
+        if phase2b_supplied and not all(value is not None for value in phase2b_values):
+            raise ValueError(
+                "Phase 2B save requires validation/test metrics and split metadata"
+            )
+        if phase2b_supplied:
+            assert validation_metrics is not None and test_metrics is not None
+            assert split_counts is not None and split_strategy is not None
+            if set(split_counts) != {"train", "validation", "test"} or any(
+                isinstance(count, bool) or not isinstance(count, int) or count <= 0
+                for count in split_counts.values()
+            ):
+                raise ValueError(
+                    "Phase 2B split_counts must contain positive train, validation, and test counts"
+                )
+            total = sum(split_counts.values())
+            if self.config.sample_size is not None and self.config.sample_size != total:
+                raise ValueError(
+                    "Phase 2B split_counts must agree with configured sample_size"
+                )
+            self.config.sample_size = total
         metadata: dict[str, Any] = {
-            "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+            "artifact_schema_version": (
+                PHASE2B_ARTIFACT_SCHEMA_VERSION
+                if phase2b_supplied
+                else ARTIFACT_SCHEMA_VERSION
+            ),
             "model_name": self.config.model_name,
             "model_version": self.config.model_version,
+            "model_identity": {
+                "name": self.config.model_name,
+                "version": self.config.model_version,
+            },
             "feature_names": list(self.feature_names),
             "threshold": self.config.threshold,
             "training": {
@@ -227,17 +296,65 @@ class ModelTrainer:
             "dataset_sha256": self.config.dataset_sha256,
             "sample_size": self.config.sample_size,
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "python_version": platform.python_version(),
             "runtime_packages": _package_versions(),
             "evaluation_metrics": dict(metrics) if metrics is not None else {},
             "config_metadata": dict(self.config.metadata),
         }
+        if self._threshold_selection is not None:
+            metadata["threshold_selection"] = dict(self._threshold_selection)
+        if phase2b_supplied:
+            assert validation_metrics is not None and test_metrics is not None
+            assert split_counts is not None and split_strategy is not None
+            metadata.update(
+                {
+                    "split_strategy": split_strategy,
+                    "split_counts": dict(split_counts),
+                    "validation_metrics": dict(validation_metrics),
+                    "test_metrics": dict(test_metrics),
+                    "runtime_versions": {
+                        "python": platform.python_version(),
+                        "packages": _package_versions(),
+                    },
+                }
+            )
         bundle = ModelBundle(
             self.model, self.feature_names, self.config.threshold, metadata
         )
         return save_bundle(
             bundle, self.config.model_dir / f"{self.config.model_name}.joblib"
         )
+
+    def train_validate_test(
+        self,
+        X_train: pd.DataFrame | np.ndarray,
+        y_train: np.ndarray | pd.Series,
+        X_validation: pd.DataFrame | np.ndarray,
+        y_validation: np.ndarray | pd.Series,
+        X_test: pd.DataFrame | np.ndarray,
+        y_test: np.ndarray | pd.Series,
+        feature_names: tuple[str, ...] | list[str] | None = None,
+        *,
+        split_strategy: str = "random",
+    ) -> tuple[Path, Metrics, Metrics]:
+        """Train on train only, select on validation only, then evaluate both splits."""
+        self.train(X_train, y_train, feature_names=feature_names)
+        self.select_threshold(X_validation, y_validation)
+        validation_metrics = self.evaluate(X_validation, y_validation)
+        test_metrics = self.evaluate(X_test, y_test)
+        counts = {
+            "train": len(y_train),
+            "validation": len(y_validation),
+            "test": len(y_test),
+        }
+        path = self.save(
+            validation_metrics=validation_metrics,
+            test_metrics=test_metrics,
+            split_strategy=split_strategy,
+            split_counts=counts,
+        )
+        return path, validation_metrics, test_metrics
 
     def train_and_evaluate(
         self,
@@ -246,7 +363,7 @@ class ModelTrainer:
         X_test: pd.DataFrame | np.ndarray,
         y_test: np.ndarray | pd.Series,
         feature_names: tuple[str, ...] | list[str] | None = None,
-    ) -> tuple[Path, dict[str, float]]:
+    ) -> tuple[Path, Metrics]:
         self.train(X_train, y_train, feature_names=feature_names)
         metrics = self.evaluate(X_test, y_test)
         return self.save(metrics), metrics

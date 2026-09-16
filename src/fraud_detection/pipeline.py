@@ -27,11 +27,23 @@ def run_training(
     preprocessor_config = PreprocessConfig(
         target_column=app_config.dataset.target_column,
         test_size=app_config.train.test_size,
+        validation_size=app_config.train.validation_size,
+        split_strategy=app_config.train.split_strategy,
         random_state=app_config.train.random_state,
     )
     validate_dataset(df, preprocessor_config)
     preprocessor = FraudPreprocessor(preprocessor_config)
-    X_train, X_test, y_train, y_test = preprocessor.split(df)
+    splits = preprocessor.split_three_way(df)
+    X_train, X_validation, X_test = (
+        splits.X_train,
+        splits.X_validation,
+        splits.X_test,
+    )
+    y_train, y_validation, y_test = (
+        splits.y_train,
+        splits.y_validation,
+        splits.y_test,
+    )
     feature_names = tuple(str(name) for name in X_train.columns)
     dataset_path = paths.data_raw / app_config.dataset.file_name
     dataset_sha256 = sha256_file(dataset_path) if dataset_path.is_file() else None
@@ -47,12 +59,20 @@ def run_training(
             sample_size=sample_size if sample_size is not None else len(df),
         )
     )
-    model_path, metrics = trainer.train_and_evaluate(
-        X_train, y_train, X_test, y_test, feature_names
+    model_path, validation_metrics, test_metrics = trainer.train_validate_test(
+        X_train,
+        y_train,
+        X_validation,
+        y_validation,
+        X_test,
+        y_test,
+        feature_names,
+        split_strategy=app_config.train.split_strategy,
     )
 
     logger.info("Model saved to %s", model_path)
-    logger.info("Metrics: %s", metrics)
+    logger.info("Validation metrics: %s", validation_metrics)
+    logger.info("Test metrics: %s", test_metrics)
 
 
 if __name__ == "__main__":
