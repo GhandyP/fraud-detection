@@ -1,8 +1,7 @@
 # Fraud Detection Program
 
-A Python fraud detection pipeline using scikit-learn. Phase 0 establishes an
-installable package foundation; later phases will add data validation and
-application interfaces.
+A Python fraud detection pipeline using scikit-learn. Phase 1 activates typed YAML
+configuration and deterministic dataset validation.
 
 ## Structure
 
@@ -10,7 +9,7 @@ application interfaces.
 - `data/` raw and processed datasets (not included)
 - `models/` trained models and artifacts (generated locally)
 - `config/` configuration files
-- `tests/` package smoke tests
+- `tests/` package and behavior tests
 
 ## Installation
 
@@ -29,18 +28,38 @@ python -m pip install -e ".[dev]"
 `requirements.txt` remains as a compatibility install path and delegates to
 `pyproject.toml`.
 
-## Run the training pipeline
+## Configuration and training
 
-The real dataset is required for training. Place it at
-`data/raw/creditcard.csv`, then run:
+Training loads `config/config.yaml` relative to the project root. The expected
+fields are:
 
-```bash
-python -m fraud_detection.pipeline
+```yaml
+dataset:
+  file_name: creditcard.csv
+  target_column: Class
+train:
+  test_size: 0.2
+  random_state: 42
 ```
 
-Training currently writes generated model artifacts under `models/trained/`.
-This Phase 0 foundation does not yet provide a CLI, FastAPI service, or Astro
-frontend.
+`file_name` must be a relative filename. The loader rejects invalid sample sizes
+(including zero), and dataset validation rejects missing/non-finite or non-numeric
+features, invalid targets, and stratified splits that cannot represent both
+classes. Invalid YAML and configuration values fail with actionable errors before
+model fitting.
+
+The current programmatic entry point is:
+
+```python
+from pathlib import Path
+from fraud_detection.pipeline import run_training
+
+run_training(Path("."))
+```
+
+The CLI, FastAPI service, Astro frontend, and persisted end-to-end model artifact
+remain future phases. Training with a real dataset writes generated artifacts under
+`models/trained/`; no real dataset is included in this repository.
 
 ## Test
 
