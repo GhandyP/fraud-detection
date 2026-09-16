@@ -71,27 +71,58 @@ The model artifact must never be shipped to the browser. The frontend must not d
 
 ### Phase 2 — Reproducible ML pipeline and artifacts
 
-**Goals**
+Phase 2 is split so the baseline artifact contract can be delivered before the
+more demanding evaluation strategy is added.
+
+#### Phase 2A — Baseline pipeline and artifact contract — complete
+
+**Delivered**
 
 - Combine preprocessing and the classifier in one persisted `sklearn.Pipeline`.
-- Keep train, validation, and test data logically separate.
-- Make the split strategy explicit and support a temporal evaluation path when the dataset allows it.
-- Use fraud-appropriate metrics, with PR-AUC as the primary metric and recall, precision, F1, ROC-AUC, and a confusion matrix as supporting metrics.
-- Select the classification threshold using validation data, never the final test set.
 - Persist the complete inference artifact with metadata:
   - model name and version;
   - ordered feature names;
   - threshold;
   - training configuration and seed;
   - dataset hash;
-  - metrics;
+  - evaluated metrics;
   - Python and dependency versions;
-  - creation timestamp.
+  - creation timestamp and sample size.
+- Validate raw feature schemas at prediction time and apply the persisted
+  preprocessing exactly once.
+- Save artifacts atomically and reject malformed or legacy bundles.
+
+**Acceptance gate**
+
+- Training, saving, loading, and predicting with the same artifact produces
+  consistent results and applies identical preprocessing.
+- Synthetic end-to-end tests cover the fixture-free workflow without tracking
+  financial data or generated model files.
+
+**Review note**
+
+- Implementation and verification are complete. Native review was attempted,
+  but the provider returned malformed collect bindings, so no native review
+  evidence or approval exists for this candidate.
+
+#### Phase 2B — Evaluation strategy and thresholding — next
+
+**Goals**
+
+- Keep train, validation, and test data logically separate.
+- Make the split strategy explicit and support a temporal evaluation path when
+  the dataset allows it.
+- Use fraud-appropriate metrics, with PR-AUC as the primary metric and recall,
+  precision, F1, ROC-AUC, and a confusion matrix as supporting metrics.
+- Select the classification threshold using validation data, never the final
+  test set.
 - Keep artifact loading restricted to a configured, trusted location.
 
 **Acceptance gate**
 
-- Training, saving, loading, and predicting with the same artifact produces consistent results and applies identical preprocessing.
+- Threshold selection is reproducible, uses only validation data, and reports
+  final metrics on an untouched test set.
+- Temporal evaluation and its limitations are covered by tests and documented.
 
 ### Phase 3 — Command-line interface
 
@@ -231,12 +262,13 @@ Each unit should include the code, tests, and documentation that explain its beh
 1. `chore: establish project foundation and repository hygiene`
 2. `feat: add configuration and dataset validation`
 3. `feat: persist reproducible training and inference artifacts`
-4. `feat: add training and prediction CLI commands`
-5. `feat: expose validated model inference through FastAPI`
-6. `feat: add interactive Astro prediction client`
-7. `ci: enforce backend and frontend quality checks`
-8. `docs: document architecture, evaluation, and model limitations`
-9. `chore: add optional local deployment setup`
+4. `feat: add validation-based thresholding and temporal evaluation`
+5. `feat: add training and prediction CLI commands`
+6. `feat: expose validated model inference through FastAPI`
+7. `feat: add interactive Astro prediction client`
+8. `ci: enforce backend and frontend quality checks`
+9. `docs: document architecture, evaluation, and model limitations`
+10. `chore: add optional local deployment setup`
 
 Do not create separate commits only for “models”, “tests”, or “frontend files”. Each commit should represent one understandable behavior and remain independently reviewable.
 

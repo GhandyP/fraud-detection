@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 from fraud_detection import pipeline
+from fraud_detection.models.predict import ModelPredictor
 
 
 def test_run_training_wires_yaml_values(monkeypatch, tmp_path: Path) -> None:
@@ -52,3 +53,31 @@ def test_run_training_wires_yaml_values(monkeypatch, tmp_path: Path) -> None:
     assert captured["preprocess"].random_state == 19
     assert captured["trainer"].random_state == 19
     assert captured["sample_size"] == 3
+
+
+def test_run_training_persists_raw_feature_bundle(tmp_path: Path) -> None:
+    raw = tmp_path / "data" / "raw"
+    raw.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "amount": list(range(1, 17)),
+            "age": [20, 21, 22, 23, 24, 25, 26, 27, 50, 51, 52, 53, 54, 55, 56, 57],
+            "label": [0] * 8 + [1] * 8,
+        }
+    ).to_csv(raw / "synthetic.csv", index=False)
+    config = tmp_path / "settings.yaml"
+    config.write_text(
+        "dataset:\n  file_name: synthetic.csv\n  target_column: label\n"
+        "train:\n  test_size: 0.25\n  random_state: 7\n"
+        "  model_name: synthetic_model\n  model_version: 'test'\n  threshold: 0.5\n",
+        encoding="utf-8",
+    )
+
+    pipeline.run_training(tmp_path, config_path=config)
+
+    predictor = ModelPredictor(
+        tmp_path / "models" / "trained" / "synthetic_model.joblib"
+    )
+    predictions = predictor.predict(pd.DataFrame({"amount": [2, 14], "age": [21, 54]}))
+    assert predictions.shape == (2,)
+    assert predictor.metadata["model_version"] == "test"

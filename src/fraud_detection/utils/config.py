@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,9 @@ class DatasetSettings:
 class TrainSettings:
     test_size: float
     random_state: int
+    model_name: str
+    model_version: str
+    threshold: float
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,9 @@ class AppConfig:
 @dataclass
 class ProjectPaths:
     root: Path
+
+    def __post_init__(self) -> None:
+        self.root = Path(self.root).resolve()
 
     @property
     def data_raw(self) -> Path:
@@ -89,6 +96,7 @@ def load_config(root: Path, config_path: str | Path | None = None) -> AppConfig:
     if (
         isinstance(test_size, bool)
         or not isinstance(test_size, (int, float))
+        or not isfinite(float(test_size))
         or not 0 < test_size < 1
     ):
         raise ConfigError("train.test_size must be a number strictly between 0 and 1")
@@ -99,8 +107,27 @@ def load_config(root: Path, config_path: str | Path | None = None) -> AppConfig:
         or random_state < 0
     ):
         raise ConfigError("train.random_state must be a non-negative integer")
+    model_name = train.get("model_name", "logistic_regression")
+    model_version = train.get("model_version", "1.0")
+    for name, value in (("model_name", model_name), ("model_version", model_version)):
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(f"train.{name} must be a non-empty string")
+    threshold = train.get("threshold", 0.5)
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not isfinite(float(threshold))
+        or not 0 <= threshold <= 1
+    ):
+        raise ConfigError("train.threshold must be a number between 0 and 1")
 
     return AppConfig(
         dataset=DatasetSettings(file_name=file_name, target_column=target),
-        train=TrainSettings(test_size=float(test_size), random_state=random_state),
+        train=TrainSettings(
+            test_size=float(test_size),
+            random_state=random_state,
+            model_name=model_name.strip(),
+            model_version=model_version.strip(),
+            threshold=float(threshold),
+        ),
     )

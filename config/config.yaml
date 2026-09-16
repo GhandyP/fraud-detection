@@ -4,3 +4,6 @@ dataset:
 train:
   test_size: 0.2
   random_state: 42
+  model_name: logistic_regression
+  model_version: "1.0"
+  threshold: 0.5

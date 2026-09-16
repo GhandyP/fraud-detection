@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 
 @dataclass
@@ -20,7 +18,6 @@ class FraudPreprocessor:
 
     def __init__(self, config: PreprocessConfig) -> None:
         self.config: PreprocessConfig = config
-        self.scaler: StandardScaler = StandardScaler()
 
     def split(
         self, df: pd.DataFrame
@@ -38,10 +35,3 @@ class FraudPreprocessor:
             random_state=self.config.random_state,
             stratify=y,
         )
-
-    def scale(
-        self, X_train: pd.DataFrame, X_test: pd.DataFrame
-    ) -> tuple[np.ndarray, np.ndarray]:
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_test_scaled = self.scaler.transform(X_test)
-        return X_train_scaled, X_test_scaled

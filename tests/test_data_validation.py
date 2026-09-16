@@ -45,3 +45,14 @@ def test_validate_dataset_rejects_split_without_each_class(tmp_path) -> None:
 
     with pytest.raises(DataValidationError, match="stratified split"):
         validate_dataset(df, invalid)
+
+
+def test_validate_dataset_accepts_nullable_numeric_features() -> None:
+    df = pd.DataFrame(
+        {
+            "amount": pd.Series([1, 2, 3, 4, 5, 6, 7, 8], dtype="Int64"),
+            "fraud": [0, 0, 0, 0, 1, 1, 1, 1],
+        }
+    )
+
+    validate_dataset(df, config())

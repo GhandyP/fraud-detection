@@ -18,6 +18,8 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
         raise DataValidationError("Dataset must be a non-empty pandas DataFrame")
     if not df.columns.is_unique:
         raise DataValidationError("Dataset columns must be unique")
+    if any(not isinstance(name, str) or not name.strip() for name in df.columns):
+        raise DataValidationError("Dataset feature names must be non-empty strings")
     target = config.target_column
     if target not in df.columns:
         raise DataValidationError(f"Dataset is missing target column '{target}'")
@@ -30,20 +32,43 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
     ]
     if non_numeric:
         raise DataValidationError(f"Feature columns must be numeric: {non_numeric}")
-    if features.isna().any().any() or not np.isfinite(features.to_numpy()).all():
+    if features.isna().any().any():
         raise DataValidationError(
             "Feature columns must not contain missing or non-finite values"
         )
-    if df[target].isna().any():
-        raise DataValidationError("Target column must not contain missing values")
-    if (
-        pd.api.types.is_numeric_dtype(df[target])
-        and not np.isfinite(df[target].to_numpy()).all()
+    for name in features:
+        column = features[name]
+        if pd.api.types.is_bool_dtype(column) or pd.api.types.is_complex_dtype(column):
+            raise DataValidationError("Feature columns must be real numeric values")
+        try:
+            values = column.to_numpy(dtype=np.float64)
+        except (TypeError, ValueError) as exc:
+            raise DataValidationError(
+                "Feature columns must be real numeric values"
+            ) from exc
+        if not np.isfinite(values).all():
+            raise DataValidationError(
+                "Feature columns must not contain missing or non-finite values"
+            )
+    if not pd.api.types.is_numeric_dtype(df[target]) or pd.api.types.is_bool_dtype(
+        df[target]
     ):
-        raise DataValidationError("Target column must not contain non-finite values")
-    classes = df[target].unique()
-    if len(classes) != 2:
-        raise DataValidationError("Target column must contain exactly two classes")
+        raise DataValidationError("Target column must contain numeric 0/1 values")
+    if df[target].isna().any():
+        raise DataValidationError("Target column must contain finite 0/1 values")
+    try:
+        target_values = df[target].to_numpy(dtype=np.float64)
+    except (TypeError, ValueError) as exc:
+        raise DataValidationError(
+            "Target column must contain finite 0/1 values"
+        ) from exc
+    if not np.isfinite(target_values).all():
+        raise DataValidationError("Target column must contain finite 0/1 values")
+    classes = set(df[target].unique())
+    if classes != {0, 1}:
+        raise DataValidationError(
+            "Target column must contain exactly two numeric values: 0 and 1"
+        )
     counts = df[target].value_counts()
     if (counts < 2).any():
         raise DataValidationError("Each target class must contain at least two samples")

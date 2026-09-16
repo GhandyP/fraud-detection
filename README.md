@@ -40,13 +40,17 @@ dataset:
 train:
   test_size: 0.2
   random_state: 42
+  model_name: logistic_regression
+  model_version: "1.0"
+  threshold: 0.5
 ```
 
 `file_name` must be a relative filename. The loader rejects invalid sample sizes
-(including zero), and dataset validation rejects missing/non-finite or non-numeric
-features, invalid targets, and stratified splits that cannot represent both
-classes. Invalid YAML and configuration values fail with actionable errors before
-model fitting.
+(including zero), and dataset validation requires numeric finite features, non-empty
+unique feature names, and a numeric target containing exactly 0 and 1. Invalid YAML
+and configuration values fail with actionable errors before model fitting. The model
+name, version, and threshold are persisted in the artifact; threshold optimization is
+not supported.
 
 The current programmatic entry point is:
 
@@ -57,12 +61,26 @@ from fraud_detection.pipeline import run_training
 run_training(Path("."))
 ```
 
-The CLI, FastAPI service, Astro frontend, and persisted end-to-end model artifact
-remain future phases. Training with a real dataset writes generated artifacts under
-`models/trained/`; no real dataset is included in this repository.
+Training writes a persisted Phase 2A end-to-end scikit-learn artifact under
+`models/trained/`. The artifact contains the fitted scaler and balanced logistic
+regression pipeline, ordered feature schema, threshold, evaluated metrics, dataset
+hash, versions, timestamp, and sample-size metadata. Prediction loads this trusted
+joblib artifact and accepts raw numeric finite features without manual scaling;
+feature order must match exactly. Threshold optimization and advanced evaluation (validation splits,
+cross-validation, temporal splits, and related metrics) are explicitly owned by
+Phase 2B. The CLI, FastAPI service, and Astro frontend remain future phases. No
+real dataset or model artifact is included in this repository.
 
-## Test
+## Verified workflow
 
 ```bash
 pytest
+ruff check .
+ruff format --check .
+mypy src
+python -m compileall -q src tests
+git diff --check
 ```
+
+The temporary integration tests exercise training, atomic artifact persistence, loading,
+and raw-feature prediction without adding data or model files to the repository.

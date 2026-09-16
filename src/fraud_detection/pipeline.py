@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-
 from fraud_detection.data.loader import DataLoader, DatasetConfig
 from fraud_detection.data.preprocessor import FraudPreprocessor, PreprocessConfig
 from fraud_detection.data.validation import validate_dataset
 from fraud_detection.models.train import ModelTrainer, TrainConfig
 from fraud_detection.utils.config import ProjectPaths, load_config
+from fraud_detection.utils.hashing import sha256_file
 from fraud_detection.utils.logger import get_logger
 
 
@@ -33,19 +32,23 @@ def run_training(
     validate_dataset(df, preprocessor_config)
     preprocessor = FraudPreprocessor(preprocessor_config)
     X_train, X_test, y_train, y_test = preprocessor.split(df)
-    X_train_scaled, X_test_scaled = preprocessor.scale(X_train, X_test)
+    feature_names = tuple(str(name) for name in X_train.columns)
+    dataset_path = paths.data_raw / app_config.dataset.file_name
+    dataset_sha256 = sha256_file(dataset_path) if dataset_path.is_file() else None
 
     trainer = ModelTrainer(
         TrainConfig(
             model_dir=paths.models_trained,
+            model_name=app_config.train.model_name,
+            model_version=app_config.train.model_version,
+            threshold=app_config.train.threshold,
             random_state=app_config.train.random_state,
+            dataset_sha256=dataset_sha256,
+            sample_size=sample_size if sample_size is not None else len(df),
         )
     )
-    y_train_np: np.ndarray = y_train.to_numpy()
-    y_test_np: np.ndarray = y_test.to_numpy()
-
     model_path, metrics = trainer.train_and_evaluate(
-        X_train_scaled, y_train_np, X_test_scaled, y_test_np
+        X_train, y_train, X_test, y_test, feature_names
     )
 
     logger.info("Model saved to %s", model_path)
