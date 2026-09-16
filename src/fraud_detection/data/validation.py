@@ -18,20 +18,23 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
         raise DataValidationError("config must be a PreprocessConfig instance")
     if not isinstance(config.target_column, str) or not config.target_column.strip():
         raise DataValidationError("target_column must be a non-empty string")
-    if not isinstance(config.split_strategy, str):
-        raise DataValidationError("split_strategy must be a string")
-    if config.timestamp_column is not None and not isinstance(
-        config.timestamp_column, str
+    if not isinstance(config.split_strategy, str) or config.split_strategy not in {
+        "random",
+        "temporal",
+    }:
+        raise DataValidationError("split_strategy must be 'random' or 'temporal'")
+    if config.timestamp_column is not None and (
+        not isinstance(config.timestamp_column, str)
+        or not config.timestamp_column.strip()
     ):
-        raise DataValidationError("timestamp_column must be a string or None")
-    if config.split_strategy != "random":
+        raise DataValidationError("timestamp_column must be a non-empty string or None")
+    if config.split_strategy == "temporal" and config.timestamp_column is None:
         raise DataValidationError(
-            "Only the 'random' split strategy is supported; temporal splitting "
-            "is reserved for a later phase"
+            "temporal split strategy requires a non-empty timestamp_column"
         )
-    if config.timestamp_column is not None:
+    if config.split_strategy == "random" and config.timestamp_column is not None:
         raise DataValidationError(
-            "timestamp_column is not supported until temporal splitting is implemented"
+            "random split strategy rejects timestamp_column; use temporal mode"
         )
     for name, value in (
         ("validation_size", config.validation_size),
@@ -45,6 +48,10 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
             raise DataValidationError(
                 f"{name} must be positive, or validation_size may be zero for two-way splitting"
             )
+    if config.split_strategy == "temporal" and config.validation_size <= 0:
+        raise DataValidationError(
+            "Temporal three-way splitting requires validation_size > 0"
+        )
     if config.validation_size + config.test_size >= 1:
         raise DataValidationError(
             "validation_size and test_size must sum to less than 1"
@@ -59,7 +66,44 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
     if target not in df.columns:
         raise DataValidationError(f"Dataset is missing target column '{target}'")
 
-    features = df.drop(columns=[target])
+    timestamp = config.timestamp_column
+    if timestamp == target:
+        raise DataValidationError(
+            "Temporal timestamp_column must differ from target_column"
+        )
+    if timestamp is not None and timestamp not in df.columns:
+        raise DataValidationError(
+            f"Temporal timestamp_column '{timestamp}' is missing from the dataset"
+        )
+    if timestamp is not None:
+        values = df[timestamp]
+        if pd.api.types.is_bool_dtype(values) or not (
+            pd.api.types.is_numeric_dtype(values)
+            or pd.api.types.is_datetime64_any_dtype(values)
+        ):
+            raise DataValidationError(
+                "Temporal timestamp_column must be numeric or pandas datetime64"
+            )
+        if values.isna().any():
+            raise DataValidationError(
+                "Temporal timestamp_column must not contain missing values"
+            )
+        if pd.api.types.is_numeric_dtype(values):
+            try:
+                timestamp_values = values.to_numpy(dtype=np.float64)
+            except (TypeError, ValueError) as exc:
+                raise DataValidationError(
+                    "Temporal timestamp_column must contain finite values"
+                ) from exc
+            if not np.isfinite(timestamp_values).all():
+                raise DataValidationError(
+                    "Temporal timestamp_column must contain finite values"
+                )
+
+    feature_columns = [target]
+    if timestamp is not None:
+        feature_columns.append(timestamp)
+    features = df.drop(columns=feature_columns)
     if features.empty:
         raise DataValidationError("Dataset must contain at least one feature column")
     non_numeric = [
@@ -125,13 +169,19 @@ def validate_dataset(df: pd.DataFrame, config: PreprocessConfig) -> None:
     validation_count = math.ceil(remaining_count * validation_fraction)
     train_count = remaining_count - validation_count
     if min(train_count, validation_count, test_count) < len(classes):
-        raise DataValidationError(
-            "Configured stratified split must leave at least one sample of every class "
+        message = (
+            "Configured temporal split must leave at least one sample of every class "
+            "in train, validation, and test partitions"
+            if config.split_strategy == "temporal"
+            else "Configured stratified split must leave at least one sample of every class "
             "in train, validation, and test partitions; each target class also needs "
-            "at least three samples "
-            f"(validation_size={config.validation_size}, test_size={config.test_size})"
+            "at least three samples"
         )
-    if any(count < 3 for count in counts):
+        raise DataValidationError(
+            message
+            + f" (validation_size={config.validation_size}, test_size={config.test_size})"
+        )
+    if config.split_strategy == "random" and any(count < 3 for count in counts):
         raise DataValidationError(
             "Each target class must contain at least three samples for a three-way "
             "stratified split"

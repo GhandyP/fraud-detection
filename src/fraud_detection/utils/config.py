@@ -23,6 +23,7 @@ class TrainSettings:
     test_size: float
     validation_size: float
     split_strategy: str
+    timestamp_column: str | None
     random_state: int
     model_name: str
     model_version: str
@@ -109,17 +110,18 @@ def load_config(root: Path, config_path: str | Path | None = None) -> AppConfig:
             "train.validation_size and train.test_size must sum to less than 1"
         )
     split_strategy = train.get("split_strategy", "random")
-    if split_strategy != "random":
-        raise ConfigError(
-            "train.split_strategy must be 'random'; temporal splitting is not supported yet"
-        )
-    timestamp_keys = {"timestamp_column", "timestamp_feature", "timestamp_required"}
-    if any(
-        key in train and train[key] not in (None, False, "") for key in timestamp_keys
+    if split_strategy not in {"random", "temporal"}:
+        raise ConfigError("train.split_strategy must be 'random' or 'temporal'")
+    timestamp_value = train.get("timestamp_column")
+    if timestamp_value is not None and (
+        not isinstance(timestamp_value, str) or not timestamp_value.strip()
     ):
-        raise ConfigError(
-            "Temporal timestamp requirements are not supported until temporal splitting is implemented"
-        )
+        raise ConfigError("train.timestamp_column must be a non-empty string")
+    timestamp_column = timestamp_value.strip() if timestamp_value is not None else None
+    if split_strategy == "temporal" and timestamp_column is None:
+        raise ConfigError("temporal split_strategy requires train.timestamp_column")
+    if split_strategy == "random" and timestamp_column is not None:
+        raise ConfigError("random split_strategy rejects train.timestamp_column")
     random_state = train.get("random_state", 42)
     if (
         isinstance(random_state, bool)
@@ -147,6 +149,7 @@ def load_config(root: Path, config_path: str | Path | None = None) -> AppConfig:
             test_size=float(test_size),
             validation_size=float(validation_size),
             split_strategy=split_strategy,
+            timestamp_column=timestamp_column,
             random_state=random_state,
             model_name=model_name.strip(),
             model_version=model_version.strip(),

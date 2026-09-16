@@ -113,16 +113,25 @@ Fraud detection is sensitive to class imbalance and false-negative/false-positiv
 
 ### P2B-05 — Add optional temporal evaluation and documentation
 
-- **Status:** pending
+- **Status:** done
+- **Result:** Implemented the approved synthetic-only temporal framework. `split_strategy: temporal` requires a non-empty `timestamp_column`; default stays `random` and rejects it. Stable `mergesort` ascending ordering with original-row-order tie policy; counts derived identically to the random path (ceil-based); oldest rows to train, then validation, newest tail to test; disjoint by construction and asserted; timestamp column excluded from features; numeric-finite/datetime64 timestamps only, missing/non-finite/string rejected; per-partition both-classes check with clear errors. Configuration parsing, `run_training()` forwarding, trainer metadata, and artifact schema `2.0` now accept `temporal` with a persisted `timestamp_column` (absent/None for random), keeping all strict metadata validation and Phase 2A compatibility. README and roadmap document temporal usage, `Time` as a possible ordering key for the external dataset (not a default, not a calendar timestamp), non-stratification, and leakage caveats.
+- **Observed checks:** Focused pytest 102 passed; full pytest 109 passed; Ruff check, Ruff format check, mypy, AST parsing, TOML parsing, `git diff --check`, and temporary-directory temporal + random E2E smokes passed; the parent fixed a markdown defect in `Doc/PLAN.md` after the worker pass.
+- **Known boundary:** Temporal partitions are not stratified; chronological leakage depends on feature semantics; `Time` of the external dataset is an ordering key only.
+- **Decided contract (user-approved, 2026-09-16):** synthetic-only temporal framework. `split_strategy: temporal` requires a non-empty `timestamp_column`; the default configuration remains `random`. Partitions are chronological with the same counts the random path derives (`test_count = ceil(n * test_size)`, then `validation_count = ceil((n - test_count) * validation_size / (1 - test_size))`, remainder train), assigned from the oldest rows: train, then validation, then the newest test tail. Duplicate timestamps are resolved by stable sort on the original row order (documented and tested). The timestamp column is excluded from the feature set (ordering key only). Every partition must contain both target classes with a clear error otherwise. Artifact schema `2.0` accepts `split_strategy: temporal`, persists the timestamp column in metadata, and keeps the validation-only max-F1 threshold contract. `Time` (seconds-since-first, duplicated) is documented as a possible ordering key for the real dataset, never as a default or as a real calendar timestamp. README and roadmap document limitations (no stratification in temporal mode, leakage caveats, tie policy).
 - **Allowed edit surfaces:**
   - `src/fraud_detection/data/preprocessor.py`
   - `src/fraud_detection/data/validation.py`
   - `src/fraud_detection/utils/config.py`
   - `src/fraud_detection/pipeline.py`
+  - `src/fraud_detection/models/train.py`
+  - `src/fraud_detection/models/artifact.py`
   - `config/config.yaml`
   - `README.md`
   - `Doc/PLAN.md`
   - `tests/test_temporal_split.py`
+  - `tests/test_config.py`
+  - `tests/test_model_artifact.py`
+  - `tests/test_pipeline.py`
 - **Acceptance:** temporal partitions are chronological and disjoint; timestamp ordering, cutoffs, duplicate timestamps, class absence, and timestamp-feature policy are explicit and tested; limitations are documented.
 - **Checks:** temporal-focused tests, full pytest, lint/format/type checks, AST/TOML parsing, and diff check.
 
@@ -135,8 +144,8 @@ Fraud detection is sensitive to class imbalance and false-negative/false-positiv
 - P2B-02 fraud metrics are centralized and verified.
 - P2B-03 validation-only threshold selection is implemented and verified.
 - P2B-04 integration of the three-way workflow and strict artifact metadata is implemented, adversarially covered, and verified; the Engram mirror is synchronized.
-- P2B-05 temporal evaluation remains pending.
+- P2B-05 temporal framework was authorized by the user as synthetic-only (timestamp_column required, default stays random, `Time` documented as possible ordering key), implemented, adversarially verified, and closed; the Engram mirror is synchronized.
 
 ## Next step
 
-Await the user's delivery decision for the verified P2B-01..P2B-04 slice (stage/commit/push require explicit authorization) or start P2B-05 temporal evaluation; update this document and the Engram mirror after either step.
+Await the user's delivery decision for the verified P2B-05 slice (stage/commit/push require explicit authorization), then open Phase 3 (CLI) as the next roadmap unit.

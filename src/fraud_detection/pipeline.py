@@ -29,6 +29,7 @@ def run_training(
         test_size=app_config.train.test_size,
         validation_size=app_config.train.validation_size,
         split_strategy=app_config.train.split_strategy,
+        timestamp_column=app_config.train.timestamp_column,
         random_state=app_config.train.random_state,
     )
     validate_dataset(df, preprocessor_config)
@@ -68,6 +69,7 @@ def run_training(
         y_test,
         feature_names,
         split_strategy=app_config.train.split_strategy,
+        timestamp_column=app_config.train.timestamp_column,
     )
 
     logger.info("Model saved to %s", model_path)

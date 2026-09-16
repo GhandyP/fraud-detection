@@ -240,6 +240,7 @@ class ModelTrainer:
         validation_metrics: Mapping[str, MetricValue] | None = None,
         test_metrics: Mapping[str, MetricValue] | None = None,
         split_strategy: str | None = None,
+        timestamp_column: str | None = None,
         split_counts: Mapping[str, int] | None = None,
     ) -> Path:
         if not self._fitted or self.feature_names is None:
@@ -262,6 +263,16 @@ class ModelTrainer:
         if phase2b_supplied:
             assert validation_metrics is not None and test_metrics is not None
             assert split_counts is not None and split_strategy is not None
+            if split_strategy not in {"random", "temporal"}:
+                raise ValueError(
+                    "Phase 2B split_strategy must be 'random' or 'temporal'"
+                )
+            if split_strategy == "temporal" and (
+                not isinstance(timestamp_column, str) or not timestamp_column.strip()
+            ):
+                raise ValueError("Temporal Phase 2B save requires timestamp_column")
+            if split_strategy == "random" and timestamp_column is not None:
+                raise ValueError("Random Phase 2B save rejects timestamp_column")
             if set(split_counts) != {"train", "validation", "test"} or any(
                 isinstance(count, bool) or not isinstance(count, int) or count <= 0
                 for count in split_counts.values()
@@ -310,6 +321,7 @@ class ModelTrainer:
             metadata.update(
                 {
                     "split_strategy": split_strategy,
+                    "timestamp_column": timestamp_column,
                     "split_counts": dict(split_counts),
                     "validation_metrics": dict(validation_metrics),
                     "test_metrics": dict(test_metrics),
@@ -337,6 +349,7 @@ class ModelTrainer:
         feature_names: tuple[str, ...] | list[str] | None = None,
         *,
         split_strategy: str = "random",
+        timestamp_column: str | None = None,
     ) -> tuple[Path, Metrics, Metrics]:
         """Train on train only, select on validation only, then evaluate both splits."""
         self.train(X_train, y_train, feature_names=feature_names)
@@ -352,6 +365,7 @@ class ModelTrainer:
             validation_metrics=validation_metrics,
             test_metrics=test_metrics,
             split_strategy=split_strategy,
+            timestamp_column=timestamp_column,
             split_counts=counts,
         )
         return path, validation_metrics, test_metrics

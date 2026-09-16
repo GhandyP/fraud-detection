@@ -194,8 +194,23 @@ def _validate_versioned_metadata(
         raise ValueError(
             "Phase 2B split_counts must contain positive train, validation, and test counts"
         )
-    if metadata["split_strategy"] != "random":
-        raise ValueError("Phase 2B split_strategy must be 'random'")
+    strategy = metadata["split_strategy"]
+    if strategy not in {"random", "temporal"}:
+        raise ValueError("Phase 2B split_strategy must be 'random' or 'temporal'")
+    timestamp_column = metadata.get("timestamp_column")
+    if strategy == "random":
+        if timestamp_column is not None:
+            raise ValueError(
+                "Phase 2B random metadata must omit timestamp_column or set it to None"
+            )
+    elif (
+        not isinstance(timestamp_column, str)
+        or not timestamp_column.strip()
+        or timestamp_column in feature_names
+    ):
+        raise ValueError(
+            "Phase 2B temporal metadata requires a timestamp_column excluded from feature_names"
+        )
     sample_size = metadata["sample_size"]
     if (
         isinstance(sample_size, bool)

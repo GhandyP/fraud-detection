@@ -39,6 +39,8 @@ dataset:
   target_column: Class
 train:
   test_size: 0.2
+  validation_size: 0.2
+  split_strategy: random
   random_state: 42
   model_name: logistic_regression
   model_version: "1.0"
@@ -49,8 +51,26 @@ train:
 (including zero), and dataset validation requires numeric finite features, non-empty
 unique feature names, and a numeric target containing exactly 0 and 1. Invalid YAML
 and configuration values fail with actionable errors before model fitting. The model
-name, version, and threshold are persisted in the artifact; threshold optimization is
-not supported.
+name, version, and threshold are persisted in the artifact; threshold selection uses validation data only and is persisted with the artifact.
+
+For synthetic or externally supplied datasets, an optional chronological split can be
+configured with `split_strategy: temporal` and a non-empty `timestamp_column`:
+
+```yaml
+train:
+  split_strategy: temporal
+  timestamp_column: event_time
+```
+
+Temporal mode sorts ascending with a stable original-row-order tie policy, assigns
+oldest rows to train, then validation, and the newest rows to test, and excludes the
+timestamp column from model features. It does not stratify partitions, so each
+partition must contain both classes. Chronological splits can still leak information
+when features encode future knowledge; choose the ordering key and leakage controls
+carefully. For the documented external credit-card dataset, `Time` is a possible
+ordering key: it is seconds since the first transaction with duplicates, not a real
+calendar timestamp, and it is not the default. Random mode remains the default and
+rejects `timestamp_column`.
 
 The current programmatic entry point is:
 

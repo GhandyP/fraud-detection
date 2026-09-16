@@ -57,15 +57,21 @@ class FraudPreprocessor:
             validate_dataset,
         )
 
-        if self.config.split_strategy != "random":
+        if self.config.split_strategy not in {"random", "temporal"}:
+            raise DataValidationError("split_strategy must be 'random' or 'temporal'")
+        if (
+            self.config.split_strategy == "temporal"
+            and self.config.timestamp_column is None
+        ):
             raise DataValidationError(
-                "Only the 'random' split strategy is supported; temporal splitting "
-                "is reserved for a later phase"
+                "temporal split strategy requires a non-empty timestamp_column"
             )
-        if self.config.timestamp_column is not None:
+        if (
+            self.config.split_strategy == "random"
+            and self.config.timestamp_column is not None
+        ):
             raise DataValidationError(
-                "timestamp_column is not supported by random splitting; "
-                "temporal splitting is reserved for a later phase"
+                "random split strategy rejects timestamp_column; use temporal mode"
             )
         if (
             isinstance(self.config.validation_size, bool)
@@ -83,31 +89,55 @@ class FraudPreprocessor:
                 "Three-way splitting requires unique row indices to prove disjointness"
             )
 
-        X = df.drop(columns=[self.config.target_column])
+        timestamp = self.config.timestamp_column
+        X = df.drop(
+            columns=[self.config.target_column] + ([timestamp] if timestamp else [])
+        )
         y = df[self.config.target_column]
         test_size = self.config.test_size
         validation_size = self.config.validation_size
         remaining_size = 1.0 - test_size
-        try:
-            X_remaining, X_test, y_remaining, y_test = train_test_split(
-                X,
-                y,
-                test_size=test_size,
-                random_state=self.config.random_state,
-                stratify=y,
+        if self.config.split_strategy == "temporal":
+            assert timestamp is not None
+            ordered = df.sort_values(timestamp, kind="mergesort")
+            test_count = math.ceil(len(df) * test_size)
+            remaining_count = len(df) - test_count
+            validation_count = math.ceil(
+                remaining_count * validation_size / remaining_size
             )
-            X_train, X_validation, y_train, y_validation = train_test_split(
-                X_remaining,
-                y_remaining,
-                test_size=validation_size / remaining_size,
-                random_state=self.config.random_state,
-                stratify=y_remaining,
+            train_count = remaining_count - validation_count
+            train_rows = ordered.iloc[:train_count]
+            validation_rows = ordered.iloc[train_count : train_count + validation_count]
+            test_rows = ordered.iloc[train_count + validation_count :]
+            X_train = train_rows.drop(columns=[self.config.target_column, timestamp])
+            X_validation = validation_rows.drop(
+                columns=[self.config.target_column, timestamp]
             )
-        except ValueError as exc:
-            raise DataValidationError(
-                "Configured three-way stratified split is not feasible; "
-                "increase the dataset size or adjust validation_size/test_size"
-            ) from exc
+            X_test = test_rows.drop(columns=[self.config.target_column, timestamp])
+            y_train = train_rows[self.config.target_column]
+            y_validation = validation_rows[self.config.target_column]
+            y_test = test_rows[self.config.target_column]
+        else:
+            try:
+                X_remaining, X_test, y_remaining, y_test = train_test_split(
+                    X,
+                    y,
+                    test_size=test_size,
+                    random_state=self.config.random_state,
+                    stratify=y,
+                )
+                X_train, X_validation, y_train, y_validation = train_test_split(
+                    X_remaining,
+                    y_remaining,
+                    test_size=validation_size / remaining_size,
+                    random_state=self.config.random_state,
+                    stratify=y_remaining,
+                )
+            except ValueError as exc:
+                raise DataValidationError(
+                    "Configured three-way stratified split is not feasible; "
+                    "increase the dataset size or adjust validation_size/test_size"
+                ) from exc
         result = DataSplits(
             X_train=X_train,
             X_validation=X_validation,
@@ -129,7 +159,8 @@ class FraudPreprocessor:
             ("test", result.y_test),
         ):
             if set(labels.unique()) != {0, 1}:
+                mode = self.config.split_strategy
                 raise DataValidationError(
-                    f"Each split must contain both target classes; {name} does not"
+                    f"Each {mode} split must contain both target classes; {name} does not"
                 )
         return result

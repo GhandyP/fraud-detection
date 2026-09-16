@@ -118,7 +118,7 @@ more demanding evaluation strategy is added.
   test set.
 - Keep artifact loading restricted to a configured, trusted location.
 
-**Delivered (P2B-01..P2B-04, uncommitted)**
+**Delivered (P2B-01..P2B-04 committed as `3d016af`; P2B-05 implemented, uncommitted)**
 
 - Deterministic three-way train/validation/test splitting with
   `validation_size`/`split_strategy` configuration and legacy two-way
@@ -130,17 +130,16 @@ more demanding evaluation strategy is added.
 - Train/validation/test orchestration with separate persisted metrics under
   artifact schema `2.0`, strict metadata validation, and schema `1.0` loading
   compatibility.
-
-**Pending (P2B-05)**
-
-- Temporal evaluation path and documented limitations.
+- Optional deterministic temporal evaluation with stable duplicate-timestamp
+  ordering, timestamp exclusion from features, and documented leakage and
+  non-stratification limitations.
 
 **Acceptance gate**
 
 - Threshold selection is reproducible, uses only validation data, and reports
   final metrics on an untouched test set. Met for the random workflow.
 - Temporal evaluation and its limitations are covered by tests and documented.
-  Pending.
+  Met.
 
 ### Phase 3 — Command-line interface
 
