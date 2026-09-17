@@ -77,8 +77,9 @@ Phase 6 closes the engineering-quality loop: the suite (126 backend tests, front
 - Coverage tooling was authorized and installed (pytest-cov 7.1.0); the project's supported Python range was corrected to 3.11–3.13 (numpy 2.4.1 has no 3.10 wheels).
 - P6-01 (CI workflow) and P6-02 (coverage + docs) are implemented, independently verified, and closed in this document and their Engram mirror.
 - Phase 6 acceptance gate is met. Delivery was split: coverage tooling, the Python 3.11–3.13 support correction (including the `datetime.UTC` autofix), and documentation were pushed as `48da1e1` and `fb7ff0e`; the push of `.github/workflows/ci.yml` was rejected by GitHub because the OAuth token lacks the `workflow` scope, so the workflow file stays untracked in the working tree until the user runs `gh auth refresh -s workflow` and authorizes the follow-up push.
-- Parent finding (must ship with the workflow): `frontend/package-lock.json` exists but is excluded by `.gitignore`, so the CI frontend job's `npm ci` would fail on a clean checkout; the follow-up commit must stop ignoring the lockfile and track it.
+- Parent finding was resolved: `.gitignore` stopped ignoring `frontend/package-lock.json` and the lockfile was tracked and pushed as `3034361` (with the Phase 7 documentation slice), so the CI frontend job's `npm ci` works on a clean checkout.
+- The workflow was pushed as `c066b25` once the user granted the GitHub `workflow` scope, and the first CI run (35280699741) passed: frontend (Node 26) in 26s, backend Python 3.13 in 49s, and backend Python 3.11 in 36s. No pending CI items remain.
 
 ## Next step
 
-Once the user grants the `workflow` scope (`gh auth refresh -s workflow`), push the pending CI workflow as one follow-up commit together with `.gitignore`/lockfile tracking (the parent found `frontend/package-lock.json` is currently ignored, which would break `npm ci` on a clean checkout). Then open Phase 7 (portfolio documentation) as the next roadmap unit.
+No pending Phase 6 work. The roadmap is complete; the only remaining optional item is a real Docker build/container smoke once the user grants Docker socket access (see `odd/tasks/phase-8-deploy.md`).

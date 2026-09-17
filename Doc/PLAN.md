@@ -350,14 +350,14 @@ Do not create separate commits only for “models”, “tests”, or “fronten
 
 ## Definition of done
 
-- [ ] A clean clone installs successfully.
-- [ ] The fixture can be validated, trained, evaluated, and queried.
-- [ ] The persisted artifact contains preprocessing and metadata.
-- [ ] The browser calls FastAPI and never executes the model.
-- [ ] Invalid data and API payloads fail safely and clearly.
-- [ ] Backend and frontend tests/checks pass in CI.
-- [ ] No private dataset, generated model, secret, or cache is committed.
-- [ ] README, architecture documentation, model card, and limitations are complete.
+- [x] A clean clone installs successfully.
+- [x] The fixture can be validated, trained, evaluated, and queried.
+- [x] The persisted artifact contains preprocessing and metadata.
+- [x] The browser calls FastAPI and never executes the model.
+- [x] Invalid data and API payloads fail safely and clearly.
+- [x] Backend and frontend tests/checks pass in CI (run 35280699741: frontend + backend on Python 3.11 and 3.13).
+- [x] No private dataset, generated model, secret, or cache is committed.
+- [x] README, architecture documentation, model card, and limitations are complete.
 
 ## Scope guardrails
 
