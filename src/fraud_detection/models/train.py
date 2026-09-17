@@ -4,7 +4,7 @@ from __future__ import annotations
 import platform
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from numbers import Integral
 from pathlib import Path
@@ -306,8 +306,8 @@ class ModelTrainer:
             },
             "dataset_sha256": self.config.dataset_sha256,
             "sample_size": self.config.sample_size,
-            "created_at_utc": datetime.now(timezone.utc).isoformat(),
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "created_at_utc": datetime.now(UTC).isoformat(),
+            "timestamp_utc": datetime.now(UTC).isoformat(),
             "python_version": platform.python_version(),
             "runtime_packages": _package_versions(),
             "evaluation_metrics": dict(metrics) if metrics is not None else {},
