@@ -7,7 +7,7 @@ name = "fraud-detection"
 version = "0.1.0"
 description = "A scikit-learn fraud detection pipeline"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "pandas==2.3.3",
     "numpy==2.4.1",
@@ -25,6 +25,7 @@ fraud = "fraud_detection.cli:main"
 [project.optional-dependencies]
 dev = [
     "pytest>=8,<9",
+    "pytest-cov>=6,<8",
     "ruff>=0.9,<1",
     "mypy>=1.14,<2",
     "httpx==0.28.1",
@@ -45,6 +46,13 @@ filterwarnings = [
 line-length = 88
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true
 disable_error_code = ["import-untyped"]
+
+[tool.coverage.run]
+source = ["fraud_detection"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

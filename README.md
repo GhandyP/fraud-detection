@@ -13,7 +13,7 @@ configuration and deterministic dataset validation.
 
 ## Installation
 
-Requires Python 3.10–3.13.
+Requires Python 3.11–3.13.
 
 ```bash
 python -m pip install -e .
@@ -207,6 +207,24 @@ major. They do not affect this static demo (no configured base path, Linux
 development host, and no image processing); re-evaluate before deployment.
 
 ## Verified workflow
+
+GitHub Actions runs the backend checks and coverage suite on every push to `main`
+and pull request, across Python 3.11 and 3.13. It also runs the frontend build,
+Astro check, and TypeScript check on Node 26. The workflow starts from a clean
+checkout and does not require the real dataset.
+
+Run the backend coverage suite locally with:
+
+```bash
+python -m pytest --cov=fraud_detection --cov-report=term-missing
+```
+
+Coverage is currently uncapped while the initial baseline is established; the
+line-coverage baseline is approximately 87% as of this commit. With branch
+coverage enabled, the verified total is 83%. Revisit the threshold after the
+project gains more coverage history.
+
+Additional local checks:
 
 ```bash
 pytest

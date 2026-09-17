@@ -98,8 +98,8 @@ Phase 5 makes the FastAPI contract consumable and testable from a real browser e
 - P5-01 (scaffold, types, API client, examples) is implemented, verified, and closed in this document and its Engram mirror.
 - P5-02 (interactive UI) is implemented, verified (with the parent's page-routing fix to `src/pages/index.astro`), and closed in this document and its Engram mirror.
 - P5-03 (README/PLAN docs and final verification) is closed; the parent fixed the stale README paragraph, added the typecheck/advisory documentation, and corrected the invalid CSS the verifier caught.
-- Phase 5 acceptance gate is met; delivery of the slice awaits user authorization.
+- Phase 5 acceptance gate is met; the slice was delivered as `f687cb2` (pushed).
 
 ## Next step
 
-Await the user's delivery decision for the verified Phase 5 slice (stage/commit/push require explicit authorization), then open Phase 6 (tests, CI, and engineering quality) as the next roadmap unit.
+Phase 6 (tests, CI, and engineering quality) is the next roadmap unit: create `odd/tasks/phase-6-quality.md` and its Engram mirror, then implement the bounded CI/quality work units.

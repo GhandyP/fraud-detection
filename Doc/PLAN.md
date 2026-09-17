@@ -269,6 +269,8 @@ POST /predict
 
 ### Phase 6 — Tests, CI, and engineering quality
 
+**Status: delivered (P6-01/P6-02)**
+
 **Goals**
 
 - Add unit tests for configuration, loading, validation, preprocessing, metrics, and artifact handling.
@@ -280,9 +282,18 @@ POST /predict
 - Add GitHub Actions for backend and frontend checks.
 - Ensure CI does not require the private/real dataset.
 
+**Delivered**
+
+- P6-01: GitHub Actions CI runs backend checks on Python 3.11 and 3.13 and frontend build, Astro check, and TypeScript checks on Node 26.
+- P6-02: Coverage is integrated with pytest-cov and documented in the README, with an uncapped initial threshold and the current baseline recorded.
+
 **Acceptance gate**
 
-- Every push runs the relevant checks and a clean checkout passes without real financial data.
+- Every push runs the relevant checks and a clean checkout passes without real financial data. Met: CI runs the relevant checks on every push from a clean checkout without the real dataset.
+
+**Review note**
+
+- Implementation and verification are complete. Native review evidence remains unavailable because the provider previously returned malformed collect bindings; no native review approval exists for this candidate.
 
 ### Phase 7 — Portfolio documentation
 
