@@ -99,8 +99,8 @@ A FastAPI service provides the stable HTTP/JSON contract that Phase 5 (Astro fro
 - P4-01 (package skeleton, health, model-info) is implemented, warning-clean, and closed in this document and its Engram mirror.
 - P4-02 (POST /predict, validation, request ID, CORS, error handling) is implemented, independently verified with no defects, and closed in this document and its Engram mirror.
 - P4-03 (README/PLAN documentation) is closed; the parent unified the `FRAUD_API_CORS_ORIGINS` env name across code, tests, and docs.
-- Phase 4 acceptance gate is met; delivery of the Phase 3 + Phase 4 working tree awaits user authorization.
+- Phase 4 acceptance gate is met; the Phase 3 + Phase 4 slices were delivered together as `cac063e` (pushed).
 
 ## Next step
 
-Await the user's delivery decision for the verified Phase 3 + Phase 4 changes (stage/commit/push require explicit authorization), then open Phase 5 (Astro frontend) as the next roadmap unit.
+Phase 5 (Astro/TypeScript frontend) is the next roadmap unit: create `odd/tasks/phase-5-astro.md` and its Engram mirror, obtain npm install authorization, then implement the bounded frontend work units.

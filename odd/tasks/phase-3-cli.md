@@ -81,8 +81,8 @@ A CLI is the first stable user-facing contract: it proves the fixture workflow e
 - Phase 3 CLI is the next roadmap unit; exploration of the existing programmatic entry points is done.
 - P3-01 (entry point, validate-data, train) is implemented, independently verified, and closed in this document and its Engram mirror.
 - P3-02 (evaluate, predict, docs, full fixture E2E) is implemented, independently verified, and closed in this document and its Engram mirror.
-- Phase 3 acceptance gate (complete fixture workflow runs from the CLI without importing Python modules) is met; delivery of the slice awaits user authorization.
+- Phase 3 acceptance gate (complete fixture workflow runs from the CLI without importing Python modules) is met; the Phase 3 + Phase 4 slices were delivered together as `cac063e` (pushed).
 
 ## Next step
 
-Await the user's delivery decision for the verified Phase 3 slice (stage/commit/push require explicit authorization), then open Phase 4 (FastAPI inference service) as the next roadmap unit.
+Phase 5 (Astro/TypeScript frontend) is the next roadmap unit: create `odd/tasks/phase-5-astro.md` and its Engram mirror, obtain npm install authorization, then implement the bounded frontend work units.

@@ -231,6 +231,26 @@ POST /predict
 
 ### Phase 5 — Astro and TypeScript interactive client
 
+**Status: delivered (P5-01/P5-02/P5-03)**
+
+**Delivered**
+
+- P5-01: Astro scaffold, TypeScript API contract types, typed client, and synthetic examples.
+- P5-02: Interactive feature form with preloaded examples, model metadata, prediction results, and loading, validation, server-error, and unreachable states.
+- P5-03: README frontend demo instructions and final Phase 5 verification.
+
+**Acceptance gate**
+
+- The frontend builds independently, connects to the local API, and demonstrates a complete prediction flow. Met.
+
+**Review note**
+
+- Implementation and verification are complete. Native review evidence is unavailable; no native review approval is claimed.
+
+**Dependency note**
+
+- Three residual npm advisories remain in the development toolchain; remediation requires the breaking `astro@7` major. They are documented as non-applicable here: no base path is configured, the esbuild issue is Windows-dev-server-only on this Linux host, and images/sharp are unused.
+
 **Goals**
 
 - Add a separate `frontend/` Astro application.

@@ -1,0 +1,250 @@
+---
+import "../styles/global.css";
+
+const title = "Fraud Detection Demo";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <p class="eyebrow">Interactive API client</p>
+        <h1>{title}</h1>
+        <p class="intro">
+          Submit a transaction-shaped feature record to see the service response.
+          This demo reports the model output and does not provide explanations.
+        </p>
+      </header>
+
+      <section class="panel" aria-labelledby="model-heading">
+        <h2 id="model-heading">Model metadata</h2>
+        <p id="model-state" class="status" role="status" aria-live="polite">Loading model metadata…</p>
+        <dl id="model-metadata" class="metadata" hidden></dl>
+      </section>
+
+      <section class="panel" aria-labelledby="form-heading">
+        <h2 id="form-heading">Transaction features</h2>
+        <div id="examples" class="examples" hidden>
+          <span class="examples-label">Preloaded examples</span>
+        </div>
+        <form id="prediction-form" novalidate>
+          <fieldset id="feature-fields" disabled>
+            <legend class="sr-only">Feature values</legend>
+            <div id="feature-grid" class="feature-grid"></div>
+            <button id="submit-button" type="submit">Check transaction</button>
+          </fieldset>
+        </form>
+        <p id="form-state" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="result-panel" class="panel result-panel" aria-labelledby="result-heading" hidden>
+        <h2 id="result-heading" tabindex="-1">Prediction result</h2>
+        <dl id="prediction-result" class="metadata"></dl>
+      </section>
+    </main>
+  </body>
+</html>
+
+<script>
+  import { ApiUnreachableError, getModelInfo, predict } from "../lib/api";
+  import { buildExamples } from "../lib/examples";
+  import { ApiError } from "../lib/types";
+  import type { ModelInfoResponse, PredictionResponse } from "../lib/types";
+
+  const modelState = document.querySelector<HTMLElement>("#model-state");
+  const modelMetadata = document.querySelector<HTMLDListElement>("#model-metadata");
+  const featureGrid = document.querySelector<HTMLDivElement>("#feature-grid");
+  const featureFields = document.querySelector<HTMLFieldSetElement>("#feature-fields");
+  const form = document.querySelector<HTMLFormElement>("#prediction-form");
+  const formState = document.querySelector<HTMLElement>("#form-state");
+  const examples = document.querySelector<HTMLDivElement>("#examples");
+  const resultPanel = document.querySelector<HTMLElement>("#result-panel");
+  const resultHeading = document.querySelector<HTMLElement>("#result-heading");
+  const predictionResult = document.querySelector<HTMLDListElement>("#prediction-result");
+
+  let modelInfo: ModelInfoResponse | null = null;
+  let requestInFlight = false;
+
+  function displayValue(value: unknown): string {
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  function errorMessage(error: unknown): string {
+    if (error instanceof ApiError) {
+      const category = error.status === 422 ? "Validation error" : error.status >= 500 ? "Server error" : "API error";
+      return `${category} (${error.status}): ${displayValue(error.detail)}`;
+    }
+    if (error instanceof ApiUnreachableError) return error.message;
+    return error instanceof Error ? error.message : "The request failed unexpectedly.";
+  }
+
+  function setBusy(busy: boolean): void {
+    requestInFlight = busy;
+    if (featureFields) featureFields.disabled = busy || modelInfo === null;
+    document.querySelectorAll<HTMLButtonElement>("#examples button").forEach((button) => {
+      button.disabled = busy;
+    });
+  }
+
+  function renderMetadata(info: ModelInfoResponse): void {
+    if (!modelMetadata || !modelState) return;
+    const entries: [string, unknown][] = [
+      ["Model version", info.model_version ?? "Not provided"],
+      ["Feature count", info.feature_names.length],
+      ["Threshold", info.threshold],
+      ["Artifact schema version", info.artifact_schema_version ?? "Not provided"],
+      ["Split strategy", info.split_strategy ?? "Not provided"],
+    ];
+    modelMetadata.replaceChildren(
+      ...entries.flatMap(([label, value]) => {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = String(value);
+        return [term, description];
+      }),
+    );
+    modelMetadata.hidden = false;
+    modelState.textContent = "Model metadata loaded.";
+  }
+
+  function renderFeatures(info: ModelInfoResponse): void {
+    if (!featureGrid || !examples) return;
+    featureGrid.replaceChildren(
+      ...info.feature_names.map((name) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "field";
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        const error = document.createElement("span");
+        const inputId = `feature-${info.feature_names.indexOf(name)}`;
+        label.htmlFor = inputId;
+        label.textContent = name;
+        input.id = inputId;
+        input.name = name;
+        input.type = "number";
+        input.step = "any";
+        input.inputMode = "decimal";
+        input.dataset.feature = name;
+        input.setAttribute("aria-describedby", `${inputId}-error`);
+        error.id = `${inputId}-error`;
+        error.className = "field-error";
+        error.setAttribute("aria-live", "polite");
+        wrapper.append(label, input, error);
+        return wrapper;
+      }),
+    );
+
+    const exampleRecords = buildExamples(info.feature_names);
+    examples.replaceChildren();
+    const label = document.createElement("span");
+    label.className = "examples-label";
+    label.textContent = "Preloaded examples";
+    examples.append(label);
+    exampleRecords.forEach((record, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `Example ${index + 1}`;
+      button.addEventListener("click", () => {
+        info.feature_names.forEach((name) => {
+          const input = featureGrid.querySelector<HTMLInputElement>(`[data-feature="${CSS.escape(name)}"]`);
+          if (input) input.value = String(record[name]);
+        });
+        if (formState) formState.textContent = `Example ${index + 1} loaded.`;
+      });
+      examples.append(button);
+    });
+    examples.hidden = false;
+  }
+
+  function validateFeatures(): Record<string, number> | null {
+    if (!modelInfo || !featureGrid || !formState) return null;
+    let valid = true;
+    const values: Record<string, number> = {};
+    modelInfo.feature_names.forEach((name) => {
+      const input = featureGrid.querySelector<HTMLInputElement>(`[data-feature="${CSS.escape(name)}"]`);
+      const error = input ? document.querySelector<HTMLElement>(`#${input.id}-error`) : null;
+      const value = input?.value.trim() ?? "";
+      let message = "";
+      if (!value) message = "This value is required.";
+      else if (!Number.isFinite(Number(value))) message = "Enter a finite number.";
+      if (message) {
+        valid = false;
+        if (input) input.setAttribute("aria-invalid", "true");
+      } else {
+        values[name] = Number(value);
+        input?.removeAttribute("aria-invalid");
+      }
+      if (error) error.textContent = message;
+    });
+    if (!valid) {
+      formState.textContent = "Validation error: correct the highlighted fields.";
+      const firstInvalid = featureGrid.querySelector<HTMLInputElement>("[aria-invalid=\"true\"]");
+      firstInvalid?.focus();
+      return null;
+    }
+    formState.textContent = "";
+    return values;
+  }
+
+  function renderResult(result: PredictionResponse): void {
+    if (!predictionResult || !resultPanel || !resultHeading) return;
+    const entries: [string, string][] = [
+      ["Fraud status", result.is_fraud ? "Fraud detected" : "No fraud detected"],
+      ["Fraud probability", `${(result.fraud_probability * 100).toFixed(3)}%`],
+      ["Threshold", String(result.threshold)],
+      ["Model version", result.model_version],
+    ];
+    predictionResult.replaceChildren(
+      ...entries.flatMap(([label, value]) => {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        return [term, description];
+      }),
+    );
+    resultPanel.hidden = false;
+    resultHeading.focus();
+  }
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (requestInFlight) return;
+    const features = validateFeatures();
+    if (!features || !formState) return;
+    setBusy(true);
+    formState.textContent = "Submitting prediction…";
+    try {
+      renderResult(await predict(features));
+      formState.textContent = "Prediction complete.";
+    } catch (error) {
+      formState.textContent = errorMessage(error);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  getModelInfo()
+    .then((info) => {
+      modelInfo = info;
+      renderMetadata(info);
+      renderFeatures(info);
+      setBusy(false);
+    })
+    .catch((error: unknown) => {
+      if (modelState) modelState.textContent = errorMessage(error);
+      if (formState) formState.textContent = "The form is unavailable until model metadata loads.";
+    });
+</script>
