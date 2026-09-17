@@ -148,4 +148,4 @@ Fraud detection is sensitive to class imbalance and false-negative/false-positiv
 
 ## Next step
 
-Await the user's delivery decision for the verified P2B-05 slice (stage/commit/push require explicit authorization), then open Phase 3 (CLI) as the next roadmap unit.
+P2B-05 was delivered as `4ee2fef` (pushed to origin/main). Open Phase 3 (CLI) as the next roadmap unit: create `odd/tasks/phase-3-cli.md` and its Engram mirror, then implement the bounded CLI work unit.

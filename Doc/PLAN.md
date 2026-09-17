@@ -105,7 +105,7 @@ more demanding evaluation strategy is added.
   but the provider returned malformed collect bindings, so no native review
   evidence or approval exists for this candidate.
 
-#### Phase 2B — Evaluation strategy and thresholding — in progress
+#### Phase 2B — Evaluation strategy and thresholding — complete
 
 **Goals**
 
@@ -118,7 +118,7 @@ more demanding evaluation strategy is added.
   test set.
 - Keep artifact loading restricted to a configured, trusted location.
 
-**Delivered (P2B-01..P2B-04 committed as `3d016af`; P2B-05 implemented, uncommitted)**
+**Delivered (P2B-01..P2B-05; committed as `3d016af` and `4ee2fef`, both pushed)**
 
 - Deterministic three-way train/validation/test splitting with
   `validation_size`/`split_strategy` configuration and legacy two-way
@@ -141,7 +141,28 @@ more demanding evaluation strategy is added.
 - Temporal evaluation and its limitations are covered by tests and documented.
   Met.
 
+**Review note**
+
+- Implementation and verification are complete. Native review evidence remains
+  unavailable because the provider previously returned malformed collect
+  bindings; no native review approval exists for these candidates.
+
 ### Phase 3 — Command-line interface
+
+**Status: delivered (P3-01/P3-02)**
+
+**Delivered**
+
+- P3-01: `fraud` entry point, `validate-data`, and `train` with stable exit codes and JSON output.
+- P3-02: trusted-artifact `evaluate`, single-record and batch `predict`, centralized metrics, documented CLI contracts, and a full synthetic fixture E2E.
+
+**Acceptance gate**
+
+- The complete fixture workflow runs from the CLI without manually importing Python modules. Met.
+
+**Review note**
+
+- Implementation and verification are complete. Native review evidence remains unavailable because the provider previously returned malformed collect bindings; no native review approval exists for this candidate.
 
 **Goals**
 
@@ -170,6 +191,8 @@ The CLI should:
 
 ### Phase 4 — FastAPI inference service
 
+**Status: delivered (P4-01/P4-02)**
+
 **Goals**
 
 - Load the persisted pipeline once during application startup.
@@ -189,20 +212,22 @@ POST /predict
 - Never expose arbitrary artifact paths.
 - Never train or overwrite a model from an HTTP request.
 
-Example response shape:
+**Delivered**
 
-```json
-{
-  "is_fraud": false,
-  "fraud_probability": 0.08,
-  "threshold": 0.50,
-  "model_version": "logistic-regression-v1"
-}
-```
+- P4-01: FastAPI service skeleton with trusted artifact loading, `GET /health`,
+  and `GET /model-info`, plus the `python -m fraud_detection.api` entry point.
+- P4-02: `POST /predict` with Pydantic validation, request IDs, configurable
+  CORS, request-body limits, and structured 4xx error handling.
 
 **Acceptance gate**
 
-- API tests cover successful predictions, malformed payloads, missing features, invalid values, and missing artifacts.
+- API tests cover successful predictions, malformed payloads, missing features, invalid values, and missing artifacts. Met.
+
+**Review note**
+
+- Implementation and verification are complete. Native review evidence is
+  unavailable because the provider returned malformed bindings; no native
+  review approval is claimed.
 
 ### Phase 5 — Astro and TypeScript interactive client
 

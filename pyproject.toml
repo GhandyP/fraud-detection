@@ -15,13 +15,19 @@ dependencies = [
     "scipy>=1.11,<1.16",
     "joblib==1.3.2",
     "pyyaml==6.0.3",
+    "fastapi==0.141.1",
+    "uvicorn==0.53.0",
 ]
+
+[project.scripts]
+fraud = "fraud_detection.cli:main"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8,<9",
     "ruff>=0.9,<1",
     "mypy>=1.14,<2",
+    "httpx==0.28.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -29,6 +35,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # Pinned upstream deprecation (fastapi 0.141.1/starlette 1.6.0): the
+    # starlette TestClient prefers httpx2, while this project pins httpx 0.28.1.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 88
