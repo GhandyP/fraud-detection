@@ -297,24 +297,20 @@ POST /predict
 
 ### Phase 7 — Portfolio documentation
 
-**Goals**
+**Status: delivered (P7-01/P7-02)**
 
-Update the project documentation with:
+**Delivered**
 
-- problem statement and intended use;
-- architecture diagram;
-- installation and local development instructions;
-- dataset provenance and license;
-- training, evaluation, API, and frontend commands;
-- screenshots or a short demo GIF;
-- reproducible results;
-- model card;
-- limitations, class imbalance, leakage risks, privacy, and security notes;
-- example API requests and responses.
+- P7-01: Architecture, model card, dataset provenance, and reproduction documentation.
+- P7-02: README restructured as a skimmable portfolio entry point with verified quickstart, architecture, dataset, model, CLI, API, frontend, and quality-check pointers.
 
 **Acceptance gate**
 
-- A new reader can clone the project, understand the architecture, run the fixture demo, and identify the model's limitations without additional explanation.
+- Met: a new reader can clone the project, understand the architecture, run the fixture demo, and identify limitations from the README and documentation.
+
+**Review note**
+
+- Documentation and verification are complete. Native review evidence is unavailable because the provider previously returned malformed collect bindings; no native review approval is claimed for this candidate.
 
 ### Phase 8 — Optional packaging and deployment
 

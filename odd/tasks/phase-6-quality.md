@@ -76,8 +76,9 @@ Phase 6 closes the engineering-quality loop: the suite (126 backend tests, front
 - Local quality checks are established and green (126 backend tests, frontend build/check/typecheck).
 - Coverage tooling was authorized and installed (pytest-cov 7.1.0); the project's supported Python range was corrected to 3.11–3.13 (numpy 2.4.1 has no 3.10 wheels).
 - P6-01 (CI workflow) and P6-02 (coverage + docs) are implemented, independently verified, and closed in this document and their Engram mirror.
-- Phase 6 acceptance gate is met; delivery of the slice awaits user authorization.
+- Phase 6 acceptance gate is met. Delivery was split: coverage tooling, the Python 3.11–3.13 support correction (including the `datetime.UTC` autofix), and documentation were pushed as `48da1e1` and `fb7ff0e`; the push of `.github/workflows/ci.yml` was rejected by GitHub because the OAuth token lacks the `workflow` scope, so the workflow file stays untracked in the working tree until the user runs `gh auth refresh -s workflow` and authorizes the follow-up push.
+- Parent finding (must ship with the workflow): `frontend/package-lock.json` exists but is excluded by `.gitignore`, so the CI frontend job's `npm ci` would fail on a clean checkout; the follow-up commit must stop ignoring the lockfile and track it.
 
 ## Next step
 
-Await the user's delivery decision for the verified Phase 6 slice (stage/commit/push require explicit authorization), then open Phase 7 (portfolio documentation) as the next roadmap unit.
+Once the user grants the `workflow` scope (`gh auth refresh -s workflow`), push the pending CI workflow as one follow-up commit together with `.gitignore`/lockfile tracking (the parent found `frontend/package-lock.json` is currently ignored, which would break `npm ci` on a clean checkout). Then open Phase 7 (portfolio documentation) as the next roadmap unit.
