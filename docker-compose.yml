@@ -1,0 +1,35 @@
+# The trained model is mounted read-only at runtime; training happens outside the containers.
+# Keep datasets and generated artifacts out of images and manage them through the host.
+services:
+  backend:
+    build:
+      context: .
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      FRAUD_API_ROOT: /app
+      FRAUD_API_HOST: 0.0.0.0
+      FRAUD_API_PORT: "8000"
+      FRAUD_API_MAX_BODY_BYTES: "${FRAUD_API_MAX_BODY_BYTES:-32768}"
+      FRAUD_API_CORS_ORIGINS: "${FRAUD_API_CORS_ORIGINS:-http://localhost:4321,http://127.0.0.1:4321}"
+    volumes:
+      - ./models/trained:/app/models/trained:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+      args:
+        PUBLIC_API_BASE_URL: "http://localhost:${BACKEND_PORT:-8000}"
+    ports:
+      - "4321:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

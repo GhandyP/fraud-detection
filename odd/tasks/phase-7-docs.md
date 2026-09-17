@@ -76,8 +76,8 @@ Reviewers of a portfolio project check three things fast: what the project claim
 - Phase 6 follow-up pending: `.github/workflows/ci.yml` is implemented and verified but unpushed (OAuth token lacks the `workflow` scope), and the parent found that `frontend/package-lock.json` is currently gitignored, which would break `npm ci` in CI; both must be fixed together in the follow-up CI commit.
 - Dataset provenance and license evidence was gathered with cited sources before writing (canonical Kaggle dataset page terms, corroborating mirrors, Zenodo re-upload noted as a non-canonical copy with different terms).
 - P7-01 (docs set) and P7-02 (README/PLAN) are implemented, independently verified, and closed in this document and their Engram mirror; the parent fixed the malformed install command the verifier caught.
-- Phase 7 acceptance gate is met; delivery awaits user authorization.
+- Phase 7 acceptance gate is met; the documentation slice and the lockfile fix were delivered as `3034361` (pushed). The CI workflow file remains the only unpushed artifact, waiting on the GitHub `workflow` scope.
 
 ## Next step
 
-Await the user's delivery decision for the verified Phase 7 documentation slice (commit/push requires explicit authorization). Separately, the pending Phase 6 follow-up (tracking `frontend/package-lock.json` and pushing `.github/workflows/ci.yml`) still waits on the GitHub `workflow` scope; the lockfile fix alone does not require that scope and can ship with the docs commit.
+Phase 8 (optional packaging and deployment) is the remaining roadmap unit; open it only after the user decides whether the optional deployment scope is wanted, and push `.github/workflows/ci.yml` once the `workflow` scope is granted.

@@ -84,6 +84,10 @@ The demo runs at `http://localhost:4321`, loads model metadata, offers synthetic
 
 Known dependency note: `npm audit` reports residual dev-toolchain advisories whose full remediation requires the breaking `astro@7` major; reassess before deployment.
 
+## Deployment (optional)
+
+Docker Compose can run the backend and static frontend; see the [deployment guide](docs/deployment.md). Images are not verified in this repository checkout.
+
 ## Quality checks and CI
 
 From the repository root:

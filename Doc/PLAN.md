@@ -314,13 +314,20 @@ POST /predict
 
 ### Phase 8 — Optional packaging and deployment
 
-Only after the previous phases are stable:
+**Status: delivered (P8-01/P8-02)**
 
-- Add Docker support for FastAPI.
-- Add Docker Compose for local backend/frontend integration.
-- Deploy Astro as a static frontend and FastAPI separately if desired.
-- Configure environment variables and health checks.
-- Document the deployment process.
+**Delivered**
+
+- P8-01: Backend image and Docker Compose wiring, including a read-only artifact mount and health ordering.
+- P8-02: Multi-stage Astro frontend image, deployment documentation, environment/health guidance, and Phase 8 closure.
+
+**Acceptance gate**
+
+- Configurations are implemented and statically validated. Image builds and container smoke tests are pending a user with Docker access.
+
+**Review note**
+
+- Implementation and static verification are complete. Native review approval is not claimed; image builds and container smoke tests remain pending a user with Docker access.
 
 Kubernetes, microservices, and distributed training are intentionally out of scope for this project.
 
